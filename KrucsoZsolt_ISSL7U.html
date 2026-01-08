@@ -69,12 +69,25 @@
   let directionalLight;
   let textureLoader = new THREE.TextureLoader();
 
+  // Fireflies state
+  let firefliesGroup;
+  let fireflies = []; // { light, mesh, baseX, baseY, baseZ, seed, speed, amp }
+  let firefliesOn = true;
+
   // New sun-cycle related state
   let directionalOn = true; // toggles visibility
   let sunCycleStartTime = performance.now();
   const sunCycleDurationMs = 60 * 1000; // 6 minutes
-  const sunRadius = 20; // distance from scene center in x-z plane
-  let sunY = 100; // keep y constant (match initial light.y)
+  const sunRadius = 30; // distance from scene center in x-z plane
+  let sunY = 150; // keep y constant (match initial light.y)
+
+  // At top of script: expose deer neck/head and head control state
+  let deerNeck; // will be assigned in init()
+  let deerHead; // optional reference
+  let headTargetRotation = Math.PI / 4; // default same as initial
+  const headMinRotation = 0.1;      // head up limit (radians)
+  const headMaxRotation = Math.PI / 1.8; // head down limit (radians)
+  const headSmoothing = 0.12;
 
   init();
 
@@ -94,6 +107,8 @@
     renderer = new THREE.WebGLRenderer( { antialias: true } );
     renderer.setSize( WIDTH, HEIGHT );
     renderer.setClearColor( 0x000000 );
+    // Enable shadows on the renderer
+    renderer.shadowMap.enabled = true;
     document.body.appendChild( renderer.domElement );
 
     // Színtér létrehozása
@@ -110,6 +125,9 @@
       const trunk = new THREE.Mesh( trunkG, trunkM );
       trunk.position.y = 4 * scale;
       trunk.scale.set(2 * scale, 3 * scale, 2 * scale);
+      // shadows for trunk
+      trunk.castShadow = true;
+      trunk.receiveShadow = true;
 
       const crownG = new THREE.SphereGeometry( 3 * scale, 16, 16 );
       const crownM = new THREE.MeshPhongMaterial();
@@ -117,6 +135,9 @@
       const crown = new THREE.Mesh( crownG, crownM );
       crown.position.y = 8 * scale;
       crown.scale.y = -0.7;
+      // shadows for crown
+      crown.castShadow = true;
+      crown.receiveShadow = true;
 
       g.add( crown );
       g.add( trunk );
@@ -145,12 +166,19 @@
       const bush2 = new THREE.Mesh( bushG, bushM );
       const bush3 = new THREE.Mesh( bushG, bushM );
       bush1.scale.set( scale, scale, scale );
+      // shadows for bushes
+      bush1.castShadow = true;
+      bush1.receiveShadow = true;
       g.add(bush1);
       bush2.position.x = 0.5 * scale;
       bush2.position.z = -0.5 * scale;
+      bush2.castShadow = true;
+      bush2.receiveShadow = true;
       g.add(bush2);
       bush3.position.x = 0.5 * scale;
       bush3.position.z = 0.5 * scale;
+      bush3.castShadow = true;
+      bush3.receiveShadow = true;
       g.add(bush3);
       g.position.x = x;
       g.position.z = z;
@@ -178,6 +206,9 @@
       rock.rotation.x = Math.random() * Math.PI;
       rock.rotation.y = Math.random() * Math.PI;
       rock.rotation.z = Math.random() * Math.PI;
+      // shadows for rocks
+      rock.castShadow = true;
+      rock.receiveShadow = true;
       scene.add( rock );
       return rock;
     };
@@ -188,21 +219,81 @@
     createRock( 10, -15, 0.9 );
     createRock( -13, -12, 0.8 );
 
+    //Komplex objektum: Szarvas
+    let deerBodyG = new THREE.BoxGeometry( 1, 2, 4 );
+    let deerBodyM = new THREE.MeshLambertMaterial( { color: 0x8B4513 } );
+    let deerBody = new THREE.Mesh( deerBodyG, deerBodyM );
+    deerBody.position.y = 3;
+    deerBody.scale.x = 1.5;
+    // deer body shadows (already set later but ensure here)
+    deerBody.receiveShadow = true;
+    deerBody.castShadow = true;
+
+    let deerLegG = new THREE.CylinderGeometry( 1, 1, 2.5, 16 );
+    let deerLegM = new THREE.MeshLambertMaterial( { color: 0x8B4513 } );
+    let deerLeg1 = new THREE.Mesh( deerLegG, deerLegM );
+    deerLeg1.scale.x = 0.2;
+    deerLeg1.scale.z = 0.3;
+    deerLeg1.position.x = -0.5;
+    deerLeg1.position.y = -1.5;
+    deerLeg1.position.z = 1.5;
+    deerLeg1.castShadow = true;
+    deerLeg1.receiveShadow = true;
+    let deerLeg2 = deerLeg1.clone();
+    deerLeg2.position.x = 0.5;
+    deerLeg2.castShadow = true;
+    deerLeg2.receiveShadow = true;
+    let deerLeg3 = deerLeg1.clone();
+    deerLeg3.position.z = -1.5;
+    deerLeg3.castShadow = true;
+    deerLeg3.receiveShadow = true;
+    let deerLeg4 = deerLeg2.clone();
+    deerLeg4.position.z = -1.5;
+    deerLeg4.castShadow = true;
+    deerLeg4.receiveShadow = true;
+    const deerNeckG = new THREE.CylinderGeometry( 0.7, 1, 2, 10 );
+    const deerNeckM = new THREE.MeshLambertMaterial( { color: 0x8B4513 } );
+    deerNeck = new THREE.Mesh( deerNeckG, deerNeckM ); // assign to global
+    deerNeck.position.y = 1;
+    deerNeck.position.z = 2;
+    deerNeck.rotation.x = Math.PI / 4; // initial pose
+    headTargetRotation = deerNeck.rotation.x; // sync target
+    deerNeck.scale.x = 0.5;
+    deerNeck.scale.z = 0.5;
+    deerNeck.castShadow = true;
+    deerNeck.receiveShadow = true;
+    const deerHeadG = new THREE.BoxGeometry( 1, 1, 1 );
+    const deerHeadM = new THREE.MeshLambertMaterial( { color: 0x8B4513 } );
+    deerHead = new THREE.Mesh( deerHeadG, deerHeadM ); // assign to global
+    deerHead.position.y = 1.5;
+    deerHead.position.z = 1;
+    deerHead.scale.x = 1.4;
+    deerHead.scale.z = 4;
+    deerHead.castShadow = true;
+    deerHead.receiveShadow = true;
+
+    deerNeck.add( deerHead );
+    deerBody.add( deerNeck );
+    deerBody.add( deerLeg1, deerLeg2, deerLeg3, deerLeg4 );
+    deerBody.position.x = 12;
+    deerBody.position.z = -12;
+    // already set above, kept for clarity
+    deerBody.receiveShadow = true;
+    deerBody.castShadow = true;
+
+    scene.add( deerBody );
+
     let talajG = new THREE.PlaneGeometry( 20, 20, 10, 10 );
     let talajM = new THREE.MeshLambertMaterial( { color: 0x00FF00, wireframe: false } );
     let talaj = new THREE.Mesh( talajG, talajM );
     talaj.rotation.x = - Math.PI / 2;
     talaj.scale.x = 3;
     talaj.scale.y = 3;
+    talaj.receiveShadow = true;
+    talaj.castShadow = false;
 
     scene.add( talaj );
     // Színtér tárgyak
-
-    directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    directionalLight.position.set(5, 10, 7.5);
-    scene.add( directionalLight );
-
-    sunY = directionalLight.position.y;
 
     let ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     let ambientOn = true;
@@ -221,6 +312,24 @@
     });
     controlsDiv.appendChild( ambientBtn );
 
+    directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    directionalLight.position.set(5, 10, 7.5);
+    directionalLight.distance = 100;
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+
+    const d = 100;
+
+    directionalLight.shadow.camera.left = -d;
+    directionalLight.shadow.camera.right = d;
+    directionalLight.shadow.camera.top = d;
+    directionalLight.shadow.camera.bottom = -d;
+
+    scene.add( directionalLight );
+
+    sunY = directionalLight.position.y;
+
     // Add Sun on/off button
     const sunBtn = document.createElement('button');
     sunBtn.className = 'top-right-btn';
@@ -231,6 +340,45 @@
       sunBtn.textContent = directionalOn ? 'Sun: On' : 'Sun: Off';
     });
     controlsDiv.appendChild( sunBtn );
+
+    firefliesGroup = new THREE.Group();
+    const fireflyG = new THREE.SphereGeometry( 0.08, 8, 8 );
+    for (let i = 0; i < 10; i++) {
+      // random base position within the scene bounds and above ground
+      const baseX = (Math.random() - 0.5) * 40;
+      const baseZ = (Math.random() - 0.5) * 40;
+      const baseY = 1 + Math.random() * 3.5;
+
+      const color = new THREE.Color().setRGB(255, 255, 0);
+      const fireflyM = new THREE.MeshBasicMaterial( { color: color } );
+      const mesh = new THREE.Mesh( fireflyG, fireflyM );
+      mesh.position.set( baseX, baseY, baseZ );
+      mesh.renderOrder = 10;
+
+      const light = new THREE.PointLight( color, 0.01, 6, 2 );
+      light.position.set( baseX, baseY, baseZ );
+      light.castShadow = true;
+
+      const seed = Math.random() * Math.PI * 2;
+      const speed = 0.3 + Math.random() * 0.8;
+      const amp = 0.3 + Math.random() * 1.2;
+
+      fireflies.push( { light, mesh, baseX, baseY, baseZ, seed, speed, amp } );
+      firefliesGroup.add( light );
+      firefliesGroup.add( mesh );
+    }
+    scene.add( firefliesGroup );
+
+    // Fireflies on/off button
+    const fireflyBtn = document.createElement('button');
+    fireflyBtn.className = 'top-right-btn';
+    fireflyBtn.textContent = 'Fireflies: On';
+    fireflyBtn.addEventListener('click', () => {
+      firefliesOn = !firefliesOn;
+      if (firefliesGroup) firefliesGroup.visible = firefliesOn;
+      fireflyBtn.textContent = firefliesOn ? 'Fireflies: On' : 'Fireflies: Off';
+    });
+    controlsDiv.appendChild( fireflyBtn );
 
     let axesHelper = new THREE.AxesHelper( 10 );
     scene.add( axesHelper );
@@ -261,6 +409,40 @@
     controls.panSpeed = 1.0;
 
     window.addEventListener( 'resize', handleWindowResize, false );
+
+    // Add head control slider to the controlsDiv (top-right)
+    const headLabel = document.createElement('label');
+    headLabel.style.color = '#ffffff';
+    headLabel.style.fontFamily = 'sans-serif';
+    headLabel.style.fontSize = '13px';
+    headLabel.style.background = 'rgba(0,0,0,0.25)';
+    headLabel.style.padding = '4px 6px';
+    headLabel.style.borderRadius = '4px';
+    headLabel.textContent = 'Head: ';
+    const headValueSpan = document.createElement('span');
+    headValueSpan.style.marginLeft = '6px';
+    headValueSpan.textContent = Math.round(( (deerNeck.rotation.x - headMinRotation) / (headMaxRotation - headMinRotation) ) * 100) + '%';
+    headLabel.appendChild(headValueSpan);
+
+    const headSlider = document.createElement('input');
+    headSlider.type = 'range';
+    headSlider.min = 0;
+    headSlider.max = 100;
+    headSlider.value = Math.round(( (deerNeck.rotation.x - headMinRotation) / (headMaxRotation - headMinRotation) ) * 100);
+    headSlider.style.width = '140px';
+    headSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value) / 100;
+      headTargetRotation = headMinRotation + v * (headMaxRotation - headMinRotation);
+      headValueSpan.textContent = Math.round(v * 100) + '%';
+    });
+
+    const headContainer = document.createElement('div');
+    headContainer.style.display = 'flex';
+    headContainer.style.alignItems = 'center';
+    headContainer.style.gap = '8px';
+    headContainer.appendChild(headLabel);
+    headContainer.appendChild(headSlider);
+    controlsDiv.appendChild(headContainer);
   }
 
   function handleWindowResize() {
@@ -297,8 +479,33 @@
     directionalLight.intensity = intensity;
   }
 
+  function updateFireflies() {
+    if (!firefliesGroup || !firefliesOn) return;
+    const t = performance.now() * 0.001;
+    for (let i = 0; i < fireflies.length; i++) {
+      const f = fireflies[i];
+      // gentle floating motion around base position
+      const x = f.baseX + Math.sin( t * f.speed + f.seed ) * f.amp * 0.6;
+      const y = f.baseY + Math.sin( t * (f.speed*1.1) + f.seed*1.3 ) * (f.amp * 0.5);
+      const z = f.baseZ + Math.cos( t * (f.speed*0.9) + f.seed*0.7 ) * (f.amp * 0.6);
+      f.mesh.position.set( x, y, z );
+      f.light.position.set( x, y, z );
+    }
+  }
+
+  // Add interpolated head update
+  function updateHead() {
+    if (!deerNeck) return;
+    // smooth interpolation toward target rotation
+    const cur = deerNeck.rotation.x;
+    const next = cur + (headTargetRotation - cur) * headSmoothing;
+    deerNeck.rotation.x = next;
+  }
+
   function render() {
     updateSun();
+    updateFireflies();
+    updateHead();
     renderer.render( scene, camera );
   }
 
