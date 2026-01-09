@@ -29,3 +29,28 @@ jobs:
 
       - name: Vite build
         run: npx vite build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js beállítása
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Függőségek telepítése
+        run: |
+          npm install
+
+      - name: Vite build
+        run: npx vite build
+
+      - name: Gh-Pages branch beállítása
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
