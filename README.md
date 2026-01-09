@@ -8,7 +8,7 @@ Ez a projekt egy Three.js alapú 3D jelenetet jelenít meg Vite fejlesztői kör
 - npm
 
 Ellenőrzés:
-```bash
+bash
 node -v
 npm -v
 
@@ -16,8 +16,10 @@ npm -v
 
 Függőségek telepítése:
 
+```
 npm install --save three
 npm install --save-dev vite
+```
 
 A fejlesztői szerver indítása:
 
