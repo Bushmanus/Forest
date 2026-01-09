@@ -3,12 +3,13 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main  # amikor a main branch-re push-olsz
-  workflow_dispatch:  # manuális indítás lehetősége
+      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Repository checkout
         uses: actions/checkout@v4
@@ -20,14 +21,13 @@ jobs:
 
       - name: Függőségek telepítése
         run: |
-          npm install --save three
-          npm install --save-dev vite
+          npm install
 
       - name: Vite build
         run: npx vite build
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v7
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
