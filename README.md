@@ -1,5 +1,28 @@
 # Forest
 
+Ez a projekt egy Three.js alapú 3D jelenetet jelenít meg Vite fejlesztői környezetben.
+
+## Követelmények
+
+- Node.js (ajánlott: 18+)
+- npm
+
+Ellenőrzés:
+```bash
+node -v
+npm -v
+
+## Telepítés
+
+Függőségek telepítése:
+
+npm install --save three
+npm install --save-dev vite
+
+A fejlesztői szerver indítása:
+
+npx vite
+
 ## Fő elemek
 
 - A színtér alapja – talaj ✅
